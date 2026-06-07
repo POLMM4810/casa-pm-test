@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -7,7 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Casa P&M">
 <title>Casa P&M</title>
-<script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;background:#070712;font-family:Georgia,serif;overflow-x:hidden;}
@@ -610,7 +609,6 @@ function renderTabs(){
 function setTab(id){try{if(chartInstances)Object.keys(chartInstances).forEach(function(k){destroyChart(k);});}catch(e){}S.tab=id;S.editId=null;S.newRow={concepto:"",importe:"",persona:"paulo"};closeSheets();renderTabs();renderBottomNav();renderContent();}
 
 function renderContent(){
-  Object.keys(chartInstances).forEach(function(k){destroyChart(k);});
   var el=document.getElementById("content");
   if(S.tab==="resumen")el.innerHTML=renderResumen();
   else if(S.tab==="vacaciones")el.innerHTML=renderVac();
@@ -866,58 +864,148 @@ function delCat(id){
   saveLocal();fbWrite();renderAll();
 }
 
-// ─── GRÁFICAS ────────────────────────────────────────────────────────────────
+// ─── GRÁFICAS (pure canvas, no dependencies) ─────────────────────────────────
 var chartInstances={};
-function destroyChart(id){if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}}
+function destroyChart(id){} // no-op, canvas is replaced by innerHTML
 
 function renderGraficas(){
-  return '<div class="card" style="margin-bottom:10px;"><div style="padding:14px 16px;">'
-    +'<div class="lbl" style="color:#2A6AA0;margin-bottom:12px;">📈 EVOLUCIÓN MENSUAL</div>'
-    +'<canvas id="chart-evol" height="220"></canvas></div></div>'
-    +'<div class="card" style="margin-bottom:10px;"><div style="padding:14px 16px;">'
-    +'<div class="lbl" style="color:#2A6AA0;margin-bottom:12px;">👨 vs 👩 POR MES</div>'
-    +'<canvas id="chart-pvm" height="180"></canvas></div></div>'
-    +'<div class="card"><div style="padding:14px 16px;">'
-    +'<div class="lbl" style="color:#2A6AA0;margin-bottom:12px;">🥧 DISTRIBUCIÓN ESTE MES</div>'
-    +'<canvas id="chart-pie" height="240"></canvas></div></div>';
-}
-
-function initCharts(){try{
-  if(S.tab!=="graficas")return;
   var keys=Object.keys(S.months).sort();
+  if(keys.length===0) return '<div class="card"><div style="padding:24px;text-align:center;color:#444;">Sin datos aún. Añade gastos de varios meses para ver la evolución.</div></div>';
+
   var labels=keys.map(function(k){var p=k.split("-");return MESES[parseInt(p[1])-1].slice(0,3)+" "+p[0].slice(2);});
-  var chartOpts={responsive:true,plugins:{legend:{labels:{color:"#888",font:{size:10},boxWidth:12}}},scales:{x:{ticks:{color:"#555"},grid:{color:"#111"}},y:{ticks:{color:"#555"},grid:{color:"#111"},beginAtZero:true}}};
+  var W=320, H=180, PAD=36;
+  var catsToShow=cats().slice(0,5); // top 5 cats
 
-  // Line chart - evolution per category
-  destroyChart("evol");
-  var evolEl=document.getElementById("chart-evol");if(!evolEl)return;
-  var datasets=cats().map(function(cat){
-    return{label:cat.emoji+" "+cat.label,
-      data:keys.map(function(k){return (S.months[k].gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0);}),
-      borderColor:cat.color,backgroundColor:cat.color+"33",tension:0.3,fill:false,pointRadius:4};
+  // ── Line chart: evolution ──
+  var allData=catsToShow.map(function(cat){
+    return keys.map(function(k){return (S.months[k].gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0);});
   });
-  chartInstances["evol"]=new Chart(evolEl,{type:"line",data:{labels:labels,datasets:datasets},options:chartOpts});
+  var allVals=[].concat.apply([],allData);
+  var maxVal=Math.max.apply(null,allVals.concat([1]));
+  var xStep=keys.length>1?(W-PAD*2)/(keys.length-1):0;
+  var yScale=(H-PAD*2)/maxVal;
 
-  // Bar chart - paulo vs miriam
-  destroyChart("pvm");
-  var pvmEl=document.getElementById("chart-pvm");if(!pvmEl)return;
-  chartInstances["pvm"]=new Chart(pvmEl,{type:"bar",
-    data:{labels:labels,datasets:[
-      {label:"👨 Paulo",data:keys.map(function(k){var p=0;Object.values(S.months[k].gastos).forEach(function(c){c.forEach(function(g){if(g.persona==="paulo")p+=g.importe;});});return p;}),backgroundColor:"#2C5F8A88",borderColor:"#7EC8E3",borderWidth:2},
-      {label:"👩 Miriam",data:keys.map(function(k){var m=0;Object.values(S.months[k].gastos).forEach(function(c){c.forEach(function(g){if(g.persona==="miriam")m+=g.importe;});});return m;}),backgroundColor:"#8A2C2C88",borderColor:"#F0A0A0",borderWidth:2}
-    ]},options:{responsive:true,plugins:{legend:{labels:{color:"#888"}}},scales:{x:{ticks:{color:"#555"},grid:{color:"#111"}},y:{ticks:{color:"#555"},grid:{color:"#111"},beginAtZero:true}}}});
+  var svgLines='';
+  catsToShow.forEach(function(cat,ci){
+    var pts=allData[ci].map(function(v,i){
+      var x=PAD+(keys.length===1?W/2:i*xStep);
+      var y=H-PAD-v*yScale;
+      return x+','+y;
+    });
+    // Polyline
+    svgLines+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+cat.color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    // Dots
+    allData[ci].forEach(function(v,i){
+      var x=PAD+(keys.length===1?W/2:i*xStep);
+      var y=H-PAD-v*yScale;
+      svgLines+='<circle cx="'+x+'" cy="'+y+'" r="3" fill="'+cat.color+'"/>';
+    });
+  });
+  // X labels
+  var xLabels=labels.map(function(l,i){
+    var x=PAD+(keys.length===1?W/2:i*xStep);
+    return '<text x="'+x+'" y="'+(H-6)+'" text-anchor="middle" font-size="9" fill="#555">'+l+'</text>';
+  }).join('');
+  // Y grid lines
+  var yGrid='';
+  for(var gi=0;gi<=4;gi++){
+    var yy=PAD+gi*(H-PAD*2)/4;
+    var val=Math.round(maxVal*(1-gi/4));
+    yGrid+='<line x1="'+PAD+'" y1="'+yy+'" x2="'+(W-PAD/2)+'" y2="'+yy+'" stroke="#1A1A2E" stroke-width="1"/>';
+    yGrid+='<text x="'+(PAD-4)+'" y="'+(yy+3)+'" text-anchor="end" font-size="8" fill="#444">'+val+'</text>';
+  }
+  // Legend
+  var legend=catsToShow.map(function(cat,i){
+    var lx=PAD+(i%3)*(W/3), ly=H+14+Math.floor(i/3)*14;
+    return '<rect x="'+lx+'" y="'+(ly-7)+'" width="8" height="8" fill="'+cat.color+'"/>'
+      +'<text x="'+(lx+10)+'" y="'+ly+'" font-size="8" fill="#888">'+cat.label+'</text>';
+  }).join('');
+  var legendH=Math.ceil(catsToShow.length/3)*14+8;
+  var svgEvol='<svg viewBox="0 0 '+W+' '+(H+legendH)+'" style="width:100%;font-family:Georgia,serif;">'
+    +'<rect width="'+W+'" height="'+(H+legendH)+'" fill="#040410" rx="8"/>'
+    +yGrid+svgLines+xLabels+legend+'</svg>';
 
-  // Doughnut - this month distribution
-  destroyChart("pie");
-  var pieEl=document.getElementById("chart-pie");if(!pieEl)return;
-  var pieCats=cats().filter(function(cat){return(cur().gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0)>0;});
-  chartInstances["pie"]=new Chart(pieEl,{type:"doughnut",
-    data:{labels:pieCats.map(function(c){return c.emoji+" "+c.label;}),
-      datasets:[{data:pieCats.map(function(c){return(cur().gastos[c.id]||[]).reduce(function(s,x){return s+x.importe;},0);}),
-        backgroundColor:pieCats.map(function(c){return c.color;}),borderColor:"#0E0E22",borderWidth:2}]},
-    options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#888",font:{size:10},padding:8}}}}});
-}catch(e){console.warn("Chart error:",e);var el=document.getElementById("content");if(el)el.innerHTML+='<div style="padding:20px;text-align:center;color:#B85450;font-size:12px;">⚠️ Error cargando gráficas. Recarga la página.</div>';}
+  // ── Bar chart: paulo vs miriam ──
+  var pauloData=keys.map(function(k){var p=0;Object.values(S.months[k].gastos).forEach(function(cat){cat.forEach(function(g){if(g.persona==="paulo")p+=g.importe;});});return p;});
+  var miriamData=keys.map(function(k){var m=0;Object.values(S.months[k].gastos).forEach(function(cat){cat.forEach(function(g){if(g.persona==="miriam")m+=g.importe;});});return m;});
+  var maxBar=Math.max.apply(null,pauloData.concat(miriamData).concat([1]));
+  var BH=160,BW=320,BPAD=36;
+  var barW=keys.length>0?(BW-BPAD*2)/(keys.length*2.5):20;
+  var barGap=barW*0.5;
+  var barScale=(BH-BPAD*2)/maxBar;
+  var svgBars='';
+  keys.forEach(function(k,i){
+    var gx=BPAD+i*((BW-BPAD*2)/keys.length);
+    var ph=pauloData[i]*barScale, mh=miriamData[i]*barScale;
+    svgBars+='<rect x="'+(gx)+'" y="'+(BH-BPAD-ph)+'" width="'+(barW)+'" height="'+ph+'" fill="#2C5F8A" rx="2"/>';
+    svgBars+='<rect x="'+(gx+barW+2)+'" y="'+(BH-BPAD-mh)+'" width="'+(barW)+'" height="'+mh+'" fill="#8A2C2C" rx="2"/>';
+    svgBars+='<text x="'+(gx+barW)+'" y="'+(BH-4)+'" text-anchor="middle" font-size="8" fill="#555">'+labels[i]+'</text>';
+  });
+  var yGridB='';
+  for(var gi=0;gi<=3;gi++){
+    var yy=BPAD+gi*(BH-BPAD*2)/3;
+    var val=Math.round(maxBar*(1-gi/3));
+    yGridB+='<line x1="'+BPAD+'" y1="'+yy+'" x2="'+(BW-BPAD/2)+'" y2="'+yy+'" stroke="#1A1A2E" stroke-width="1"/>';
+    yGridB+='<text x="'+(BPAD-4)+'" y="'+(yy+3)+'" text-anchor="end" font-size="8" fill="#444">'+val+'</text>';
+  }
+  var svgPvM='<svg viewBox="0 0 '+BW+' '+(BH+20)+'" style="width:100%;font-family:Georgia,serif;">'
+    +'<rect width="'+BW+'" height="'+(BH+20)+'" fill="#040410" rx="8"/>'
+    +yGridB+svgBars
+    +'<rect x="'+BPAD+'" y="'+(BH+6)+'" width="10" height="8" fill="#2C5F8A"/>'
+    +'<text x="'+(BPAD+13)+'" y="'+(BH+14)+'" font-size="9" fill="#7EC8E3">Paulo</text>'
+    +'<rect x="'+(BPAD+60)+'" y="'+(BH+6)+'" width="10" height="8" fill="#8A2C2C"/>'
+    +'<text x="'+(BPAD+73)+'" y="'+(BH+14)+'" font-size="9" fill="#F0A0A0">Miriam</text>'
+    +'</svg>';
+
+  // ── Donut: this month ──
+  var d=cur(); var total=0;
+  var slices=cats().map(function(cat){var v=(d.gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0);total+=v;return{cat:cat,v:v};}).filter(function(s){return s.v>0;});
+  var DW=280,DR=80,CX=100,CY=100;
+  var donutSVG='';
+  if(total>0){
+    var angle=-Math.PI/2;
+    slices.forEach(function(s){
+      var sweep=(s.v/total)*Math.PI*2;
+      var x1=CX+DR*Math.cos(angle), y1=CY+DR*Math.sin(angle);
+      var x2=CX+DR*Math.cos(angle+sweep), y2=CY+DR*Math.sin(angle+sweep);
+      var large=sweep>Math.PI?1:0;
+      var ir=52;
+      var ix1=CX+ir*Math.cos(angle+sweep), iy1=CY+ir*Math.sin(angle+sweep);
+      var ix2=CX+ir*Math.cos(angle), iy2=CY+ir*Math.sin(angle);
+      donutSVG+='<path d="M'+x1+' '+y1+' A'+DR+' '+DR+' 0 '+large+' 1 '+x2+' '+y2
+        +' L'+ix1+' '+iy1+' A'+ir+' '+ir+' 0 '+large+' 0 '+ix2+' '+iy2+' Z" fill="'+s.cat.color+'" stroke="#040410" stroke-width="1.5"/>';
+      angle+=sweep;
+    });
+    // Center text
+    donutSVG+='<text x="'+CX+'" y="'+(CY-6)+'" text-anchor="middle" font-size="10" fill="#888">Total</text>';
+    donutSVG+='<text x="'+CX+'" y="'+(CY+10)+'" text-anchor="middle" font-size="12" font-weight="bold" fill="#E8E0D0">'+fmt(total)+'</text>';
+  }
+  // Legend right side
+  var legX=210, legY=20;
+  var legendD=slices.map(function(s,i){
+    var ly=legY+i*18;
+    return '<rect x="'+legX+'" y="'+(ly)+'" width="8" height="8" fill="'+s.cat.color+'" rx="1"/>'
+      +'<text x="'+(legX+11)+'" y="'+(ly+8)+'" font-size="8" fill="#888">'+s.cat.label+'</text>'
+      +'<text x="'+(DW-4)+'" y="'+(ly+8)+'" text-anchor="end" font-size="8" fill="'+s.cat.color+'">'+Math.round(s.v/total*100)+'%</text>';
+  }).join('');
+  var donutH=Math.max(200, slices.length*18+30);
+  var svgDonut='<svg viewBox="0 0 '+DW+' '+donutH+'" style="width:100%;font-family:Georgia,serif;">'
+    +'<rect width="'+DW+'" height="'+donutH+'" fill="#040410" rx="8"/>'
+    +donutSVG+legendD+'</svg>';
+
+  return '<div class="card" style="margin-bottom:10px;"><div style="padding:14px 16px;">'
+    +'<div class="lbl" style="color:#2A6AA0;margin-bottom:10px;">📈 EVOLUCIÓN MENSUAL</div>'
+    +svgEvol+'</div></div>'
+    +'<div class="card" style="margin-bottom:10px;"><div style="padding:14px 16px;">'
+    +'<div class="lbl" style="color:#2A6AA0;margin-bottom:10px;">👨 vs 👩 POR MES</div>'
+    +svgPvM+'</div></div>'
+    +'<div class="card"><div style="padding:14px 16px;">'
+    +'<div class="lbl" style="color:#2A6AA0;margin-bottom:10px;">🥧 DISTRIBUCIÓN ESTE MES</div>'
+    +svgDonut+'</div></div>';
 }
+
+function initCharts(){} // no-op, charts render inline now
+
 
 // ─── AHORRO Y ALERTAS ────────────────────────────────────────────────────────
 function renderAhorro(){
