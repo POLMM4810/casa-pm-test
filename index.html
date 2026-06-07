@@ -501,7 +501,7 @@ function renderBottomNav(){
   var groups = getNavGroups();
   // Determine active group
   var activeGroup = "resumen";
-  var gastosTabs = getCategorias().map(function(c){return c.id;}).concat(["vacaciones"]);
+  var gastosTabs = cats().map(function(c){return c.id;}).concat(["vacaciones"]);
   var masTabs = ["gestionar"];
   if(gastosTabs.indexOf(S.tab) >= 0) activeGroup = "gastos";
   else if(S.tab === "graficas") activeGroup = "graficas";
@@ -513,7 +513,7 @@ function renderBottomNav(){
   if(!nav) return;
   nav.innerHTML = groups.map(function(g){
     var on = activeGroup === g.id;
-    return '<button class="bnav-btn'+(on?" on":"")+'" onclick="navClick(''+g.id+'')">'
+    return '<button class="bnav-btn'+(on?' on':'')+'" onclick="navClick(\''+g.id+'\')">' 
       +'<span class="bnav-icon">'+g.emoji+'</span>'
       +'<span class="bnav-label">'+(on?'<span style="color:#C17D3C;">'+g.label+'</span>':g.label)+'</span>'
       +'</button>';
@@ -535,7 +535,7 @@ function showGastosSheet(){
   // Remove existing sheet
   var old = document.getElementById("bottom-sheet");
   if(old){old.remove();return;}
-  var allCats = getCategorias();
+  var allCats = cats();
   var extras = [{id:"vacaciones",label:"Vacaciones",emoji:"✈️",color:"#3A7CA5"}];
   var allTabs = allCats.concat(extras);
   var sheet = document.createElement("div");
@@ -545,9 +545,9 @@ function showGastosSheet(){
     +'<div style="font-size:9px;color:#444;letter-spacing:3px;font-family:monospace;margin-bottom:10px;padding:0 4px;">CATEGORÍAS</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
     +allTabs.map(function(tab){
-      var ct = catTotals(tab.id);
+      var ct = null; try{ct={total:catTot(tab.id)};}catch(e){}
       var on = S.tab === tab.id;
-      return '<button onclick="setTab(''+tab.id+'');closeSheets();" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:'+(on?tab.color+"22":"#16162A")+';border:'+(on?"1px solid "+tab.color:"1px solid #1E1E38")+';border-radius:10px;cursor:pointer;font-family:Georgia,serif;">'
+      return '<button onclick="setTab(\''+tab.id+'\');closeSheets();" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:'+(on?tab.color+"22":"#16162A")+';border:'+(on?"1px solid "+tab.color:"1px solid #1E1E38")+';border-radius:10px;cursor:pointer;font-family:Georgia,serif;">'
         +'<span style="font-size:18px;">'+tab.emoji+'</span>'
         +'<div style="text-align:left;">'
         +'<div style="font-size:12px;color:#C8C0B0;font-weight:'+(on?"bold":"normal")+';">'+tab.label+'</div>'
@@ -572,7 +572,7 @@ function showMasSheet(){
   sheet.style.cssText = "position:fixed;bottom:65px;left:0;right:0;background:#0E0E22;border-top:1px solid #1E1E38;border-radius:20px 20px 0 0;z-index:199;padding:16px 12px;";
   sheet.innerHTML = '<div style="text-align:center;margin-bottom:12px;"><div style="width:36px;height:3px;background:#333;border-radius:3px;display:inline-block;"></div></div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
-    +'<button onclick="setTab('gestionar');closeSheets();" style="display:flex;align-items:center;gap:8px;padding:12px;background:#16162A;border:1px solid #1E1E38;border-radius:10px;cursor:pointer;font-family:Georgia,serif;">'
+    +'<button onclick="setTab(\'gestionar\');closeSheets();" style="display:flex;align-items:center;gap:8px;padding:12px;background:#16162A;border:1px solid #1E1E38;border-radius:10px;cursor:pointer;font-family:Georgia,serif;">'
     +'<span style="font-size:20px;">⚙️</span><span style="font-size:13px;color:#C8C0B0;">Gestionar</span></button>'
     +'</div>';
   document.body.appendChild(sheet);
@@ -891,7 +891,7 @@ function initCharts(){try{
   // Line chart - evolution per category
   destroyChart("evol");
   var evolEl=document.getElementById("chart-evol");if(!evolEl)return;
-  var datasets=getCategorias().map(function(cat){
+  var datasets=cats().map(function(cat){
     return{label:cat.emoji+" "+cat.label,
       data:keys.map(function(k){return (S.months[k].gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0);}),
       borderColor:cat.color,backgroundColor:cat.color+"33",tension:0.3,fill:false,pointRadius:4};
@@ -910,7 +910,7 @@ function initCharts(){try{
   // Doughnut - this month distribution
   destroyChart("pie");
   var pieEl=document.getElementById("chart-pie");if(!pieEl)return;
-  var pieCats=getCategorias().filter(function(cat){return(cur().gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0)>0;});
+  var pieCats=cats().filter(function(cat){return(cur().gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0)>0;});
   chartInstances["pie"]=new Chart(pieEl,{type:"doughnut",
     data:{labels:pieCats.map(function(c){return c.emoji+" "+c.label;}),
       datasets:[{data:pieCats.map(function(c){return(cur().gastos[c.id]||[]).reduce(function(s,x){return s+x.importe;},0);}),
@@ -933,7 +933,7 @@ function renderAhorro(){
 
   // Build alerts HTML
   var alertHTML="";
-  getCategorias().forEach(function(cat){
+  cats().forEach(function(cat){
     var lim=alertas[cat.id]||0;
     var gast=(d.gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0);
     if(lim>0&&gast>=lim*0.8){
@@ -983,7 +983,7 @@ function renderAhorro(){
     +'<div class="card"><div style="padding:14px 16px;">'
     +'<div class="lbl" style="color:#555;margin-bottom:10px;">⚙️ LÍMITES POR CATEGORÍA</div>'
     +'<div style="font-size:11px;color:#333;margin-bottom:12px;">Alerta al 80% y al 100% del límite. Pon 0 para desactivar.</div>'
-    +getCategorias().map(function(cat){
+    +cats().map(function(cat){
       var lim=alertas[cat.id]||0;
       var gast=(d.gastos[cat.id]||[]).reduce(function(s,x){return s+x.importe;},0);
       var pctC=lim>0?Math.min(100,(gast/lim)*100):0;
