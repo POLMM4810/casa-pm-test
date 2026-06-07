@@ -30,7 +30,6 @@ select option{background:#16162A;}
 .pin-dot{width:14px;height:14px;border-radius:50%;background:transparent;border:2px solid #2A2A40;transition:all .15s;}
 .pin-dot.on{background:var(--gold);border-color:var(--gold);box-shadow:0 0 8px var(--gold2);}
 .pin-dot.err{background:#B85450;border-color:#B85450;}
-#pin-field{width:180px;text-align:center;font-size:32px;letter-spacing:16px;background:var(--bg2);color:var(--gold);border:1.5px solid #2A2A40;border-radius:14px;padding:14px 20px;-webkit-text-security:disc;caret-color:var(--gold);transition:border-color .2s,box-shadow .2s;outline:none;}
 #pin-field:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold2);}
 #pin-err{color:#B85450;font-size:12px;margin-top:12px;min-height:18px;letter-spacing:1px;}
 /* APP */
@@ -144,7 +143,7 @@ select option{background:#16162A;}
       <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
       <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
     </div>
-    <input id="pin-field" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="····">
+    <input id="pin-field" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="    " style="font-size:32px;letter-spacing:16px;width:180px;text-align:center;background:#0E0E22;color:#C17D3C;border:1.5px solid #2A2A40;border-radius:14px;padding:14px 20px;caret-color:#C17D3C;outline:none;">
     <div id="pin-err"></div>
   </div>
 </div>
