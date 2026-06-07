@@ -106,6 +106,37 @@ select option{background:#16162A;}
 .bnav-btn.on .bnav-label{color:#C17D3C;}
 .bnav-btn.on .bnav-icon{filter:drop-shadow(0 0 4px rgba(193,125,60,.6));}
 #content{padding:10px 12px 80px;}
+
+/* Global uppercase for all UI text */
+.cat-row, .xin, .card-hdr, .sum-row, .vrow, .chk-label,
+.hdr-total, .hdr-persons, .hdr-bal,
+.bal-grid, .vresult { text-transform: uppercase; }
+
+/* Category names */
+.section-name { text-transform: uppercase; letter-spacing: 1px; }
+.expense-name { text-transform: uppercase; font-size: 12px !important; }
+.cat-row span, .sum-cat { text-transform: uppercase; }
+
+/* Input fields should NOT be uppercase */
+input, select, textarea { text-transform: none !important; }
+input::placeholder { text-transform: uppercase; }
+
+/* Bottom nav already uppercase */
+/* Ensure all lbl elements uppercase */
+.lbl { text-transform: uppercase !important; }
+
+/* Card headers */
+.card-hdr span { text-transform: uppercase; letter-spacing: .5px; }
+
+/* Balance card text */
+.bal-grid div { text-transform: uppercase; }
+
+/* Make inputs white on dark background */
+input[type="number"], input[type="text"], input[type="password"], input[type="tel"] {
+  color: #E8E0D0 !important;
+  background: #16162A !important;
+  border: 1px solid #2A2A40 !important;
+}
 </style>
 </head>
 <body>
